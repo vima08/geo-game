@@ -2,6 +2,8 @@
 
 A mobile-first, installable geolocation exploration game set in Bostandyk District, Almaty. Players visit five public landmarks and solve tiny location-specific clues to recover the sigils of a forgotten city atlas. There is no backend, account, analytics, or API key.
 
+The interface is available in English and Russian. Russian is selected automatically when the browser language starts with `ru`; the player can switch languages at any time in **Field Kit / Полевой набор**, and the choice persists locally.
+
 ## Development
 
 Requires Node.js 20 or newer.

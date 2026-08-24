@@ -2,7 +2,8 @@ import 'leaflet/dist/leaflet.css';
 import L, { type Map as LeafletMap } from 'leaflet';
 import './style.css';
 import { POIS } from './data/pois';
-import { distanceMeters, formatDistance, proximityMessage } from './geo';
+import { distanceMeters, formatDistance } from './geo';
+import { loadLanguage, poiText, saveLanguage, t, type Language } from './i18n';
 import { loadProgress, resetProgress, saveProgress } from './progress';
 import type { LocationReading, PointOfInterest, Progress } from './types';
 
@@ -23,10 +24,16 @@ let answeredCorrectly = false;
 let showAtlas = false;
 let storageWarning = false;
 let staleTimer: number | null = null;
+let language: Language = loadLanguage();
+let settingsOpen = false;
+let trailListOpen = false;
+let devPanelOpen = false;
 
 const selectedPoi = () => POIS.find((p) => p.id === selectedId)!;
 const isDone = (id: string) => progress.discoveredIds.includes(id);
 const rewardSymbol = (name: string) => POIS.find((p) => p.reward.name === name)?.reward.symbol ?? '•';
+const tr = (key: Parameters<typeof t>[1], values?: Record<string, string | number>) => t(language, key, values);
+const pt = (poi: PointOfInterest) => poiText(poi, language);
 
 function render(): void {
   const existingMapElement = map?.getContainer() ?? null;
@@ -35,94 +42,102 @@ function render(): void {
   const sorted = [...POIS].sort((a, b) => reading ? distanceMeters(reading, a) - distanceMeters(reading, b) : a.name.localeCompare(b.name));
   const distance = reading ? distanceMeters(reading, selected) : null;
   const complete = progress.discoveredIds.length === POIS.length;
+  document.documentElement.lang = language;
   app.innerHTML = `
     <div class="shell ${simulation ? 'is-simulating' : ''}">
-      ${simulation ? '<div class="sim-banner">SIMULATION MODE · REAL GPS OFF</div>' : ''}
-      <header class="topbar"><div><div class="eyebrow">FIELD JOURNAL · BOSTANDYK</div><h1>Bostandyk Trails</h1></div><button class="icon-button" id="menu-button" aria-label="Open settings">•••</button></header>
-      <section class="progress-wrap" aria-label="Journey progress"><div class="progress-copy"><span>${progress.discoveredIds.length} of 5 secrets found</span><button class="atlas-mini" id="atlas-button">${progress.rewards.map(rewardSymbol).join(' ') || 'Atlas unopened'}</button></div><div class="progress-track"><span style="width:${progress.discoveredIds.length * 20}%"></span></div></section>
-      ${storageWarning ? '<div class="storage-warning">Progress cannot be saved on this device. Check browser storage settings.</div>' : ''}${progress.discoveredIds.length === 0 ? '<div class="first-hint">Walk to a numbered marker. Enter its ring to uncover a sigil.</div>' : ''}
-      ${complete ? '<button class="ending-strip" id="ending-button">✦ Atlas complete — read the final page</button>' : ''}
+      ${simulation ? `<div class="sim-banner">${tr('simulationBanner')}</div>` : ''}
+      <header class="topbar"><div><div class="eyebrow">${tr('journal')}</div><h1>${tr('title')}</h1></div><button class="icon-button" id="menu-button" aria-label="${tr('openSettings')}">•••</button></header>
+      <section class="progress-wrap" aria-label="${tr('secretsFound', { n: progress.discoveredIds.length })}"><div class="progress-copy"><span>${tr('secretsFound', { n: progress.discoveredIds.length })}</span><button class="atlas-mini" id="atlas-button">${progress.rewards.map(rewardSymbol).join(' ') || tr('atlasUnopened')}</button></div><div class="progress-track"><span style="width:${progress.discoveredIds.length * 20}%"></span></div></section>
+      ${storageWarning ? `<div class="storage-warning">${tr('saveError')}</div>` : ''}${progress.discoveredIds.length === 0 ? `<div class="first-hint">${tr('firstHint')}</div>` : ''}
+      ${complete ? `<button class="ending-strip" id="ending-button">${tr('atlasComplete')}</button>` : ''}
       <main>
-        <section class="map-frame" aria-label="Map of Bostandyk points of interest"><div id="map"></div><div class="map-top-status">${gpsStatus()}</div><button class="map-action" id="center-button" ${reading ? '' : 'disabled'}>⌖ <span>Center on me</span></button><div class="map-offline" id="map-offline" hidden>Map tiles unavailable. The trail still works.</div></section>
+        <section class="map-frame" aria-label="${tr('mapLabel')}"><div id="map"></div><div class="map-top-status">${gpsStatus()}</div><button class="map-action" id="center-button" ${reading ? '' : 'disabled'}>⌖ <span>${tr('center')}</span></button><div class="map-offline" id="map-offline" hidden>${tr('mapOffline')}</div></section>
         <section class="quest-panel">
-          <div class="panel-heading"><div><div class="eyebrow">${isDone(selected.id) ? 'DISCOVERED' : 'SELECTED TRAIL'}</div><h2>${selected.shortName}</h2></div><div class="distance-badge">${distance === null ? '—' : formatDistance(distance)}</div></div>
-          <p class="description">${selected.description}</p><div class="approach ${distance !== null && distance <= selected.activationRadiusMeters ? 'arrived' : ''}">${selectedStatus(selected, distance)}</div>
-          <div class="primary-actions">${primaryAction(selected, distance)}</div><button class="list-toggle" id="list-toggle" aria-expanded="false">All five trails <span>⌄</span></button><div class="poi-list" id="poi-list" hidden>${sorted.map(poiCard).join('')}</div>
+          <div class="panel-heading"><div><div class="eyebrow">${isDone(selected.id) ? tr('discovered') : tr('selectedTrail')}</div><h2>${pt(selected).shortName}</h2></div><div class="distance-badge">${distance === null ? '—' : formatDistance(distance)}</div></div>
+          <p class="description">${pt(selected).description}</p><div class="approach ${distance !== null && distance <= selected.activationRadiusMeters ? 'arrived' : ''}">${selectedStatus(selected, distance)}</div>
+          <div class="primary-actions">${primaryAction(selected, distance)}</div><button class="list-toggle" id="list-toggle" aria-expanded="${trailListOpen}">${tr('allTrails')} <span>⌄</span></button><div class="poi-list" id="poi-list" ${trailListOpen ? '' : 'hidden'}>${sorted.map(poiCard).join('')}</div>
         </section>
-      </main><footer><span>Location stays on this device.</span><span>Stay aware outdoors.</span></footer>
+      </main><footer><span>${tr('privacyFooter')}</span><span>${tr('safetyFooter')}</span></footer>
     </div>
     ${!progress.tutorialSeen ? onboardingHtml() : ''}${eventPoi ? eventHtml(eventPoi) : ''}${showAtlas ? atlasHtml() : ''}
     <dialog id="settings-dialog">${settingsHtml()}</dialog>${simulation ? devPanelHtml(selected, distance) : ''}`;
   bindUi();
   if (existingMapElement && map) { document.querySelector('#map')!.replaceWith(existingMapElement); updateMapLayers(); map.invalidateSize(); }
   else initMap();
+  const dialog = document.querySelector<HTMLDialogElement>('#settings-dialog');
+  if (settingsOpen && dialog && !dialog.open) dialog.showModal();
 }
 
 function gpsStatus(): string {
-  if (reading && gpsState === 'active' && !isStale()) return `<span class="gps-dot"></span>${reading.source === 'simulated' ? 'Simulated' : 'GPS'} · ±${Math.round(reading.accuracy)} m`;
-  if (reading) return `Last fix · ${gpsState === 'active' ? 'position is stale' : gpsStateLabel()}`;
-  if (simulation) return 'Simulation ready · choose a position';
+  if (reading && gpsState === 'active' && !isStale()) return `<span class="gps-dot"></span>${reading.source === 'simulated' ? tr('simulated') : 'GPS'} · ±${Math.round(reading.accuracy)} m`;
+  if (reading) return `${tr('lastFix')} · ${gpsState === 'active' ? tr('stale') : gpsStateLabel()}`;
+  if (simulation) return tr('simulationReady');
   return gpsStateLabel();
 }
-function gpsStateLabel(): string { const labels: Record<GpsState, string> = { idle: 'GPS not started', acquiring: 'Finding your position…', active: 'GPS active', denied: 'Permission denied · retry in settings', unavailable: 'GPS unavailable · retry', timeout: 'GPS timed out · retry', unsupported: 'Geolocation unsupported' }; return labels[gpsState]; }
+function gpsStateLabel(): string { const labels: Record<GpsState, Parameters<typeof t>[1]> = { idle: 'gpsNotStarted', acquiring: 'finding', active: 'gpsActive', denied: 'permissionDenied', unavailable: 'gpsUnavailable', timeout: 'gpsTimeout', unsupported: 'gpsUnsupported' }; return tr(labels[gpsState]); }
 function isStale(): boolean { return reading?.source === 'real' && Date.now() - reading.timestamp > 60_000; }
 function canUnlock(): boolean { return Boolean(reading && gpsState === 'active' && !isStale()); }
+function proximity(distance: number, radius: number): string { if (distance <= radius) return tr('arrived'); if (distance <= Math.max(radius * 2, 100)) return tr('almost', { distance: formatDistance(distance) }); return tr('away', { distance: formatDistance(distance) }); }
 function selectedStatus(poi: PointOfInterest, distance: number | null): string {
-  if (isDone(poi.id)) return `<span>✓</span><div><strong>${poi.reward.name} collected</strong><small>Reopen this memory any time.</small></div>`;
-  if (distance === null) return simulation ? `<span>⚙</span><div><strong>Choose a simulated position</strong><small>Open Developer controls below to begin.</small></div>` : `<span>⌖</span><div><strong>Turn on location to begin</strong><small>We only read it while the game is open.</small></div>`;
-  if (!canUnlock()) return `<span>!</span><div><strong>Location signal lost</strong><small>Your last fix is kept for distance only. Retry GPS before unlocking.</small></div>`;
-  if (!isDone(poi.id) && distance <= poi.activationRadiusMeters && reading!.accuracy > poi.activationRadiusMeters) return `<span>≈</span><div><strong>GPS uncertain — stay nearby</strong><small>Accuracy is ±${Math.round(reading!.accuracy)} m. Let the signal settle before unlocking.</small></div>`;
-  return `<span>${distance <= poi.activationRadiusMeters ? '✦' : '→'}</span><div><strong>${proximityMessage(distance, poi.activationRadiusMeters)}</strong><small>Discovery radius: ${poi.activationRadiusMeters} m${reading!.accuracy > 50 ? ' · GPS signal is weak' : ''}</small></div>`;
+  if (isDone(poi.id)) return `<span>✓</span><div><strong>${pt(poi).reward} ${tr('collected')}</strong><small>${tr('reopen')}</small></div>`;
+  if (distance === null) return simulation ? `<span>⚙</span><div><strong>${tr('chooseSim')}</strong><small>${tr('openDevBelow')}</small></div>` : `<span>⌖</span><div><strong>${tr('turnOn')}</strong><small>${tr('locationWhileOpen')}</small></div>`;
+  if (!canUnlock()) return `<span>!</span><div><strong>${tr('signalLost')}</strong><small>${tr('lastFixDistance')}</small></div>`;
+  if (distance <= poi.activationRadiusMeters && reading!.accuracy > poi.activationRadiusMeters) return `<span>≈</span><div><strong>${tr('gpsUncertain')}</strong><small>${tr('settle', { n: Math.round(reading!.accuracy) })}</small></div>`;
+  return `<span>${distance <= poi.activationRadiusMeters ? '✦' : '→'}</span><div><strong>${proximity(distance, poi.activationRadiusMeters)}</strong><small>${tr('radius', { n: poi.activationRadiusMeters })}${reading!.accuracy > 50 ? tr('weak') : ''}</small></div>`;
 }
 function primaryAction(poi: PointOfInterest, distance: number | null): string {
-  if (isDone(poi.id)) return '<button class="primary" id="open-event">Open discovered memory</button>';
-  if (distance === null) return simulation ? '<button class="primary" id="dev-open">Open developer controls</button>' : `<button class="primary" id="gps-button">${gpsState === 'acquiring' ? 'Finding position…' : 'Enable my location'}</button>`;
-  if (!canUnlock()) return '<button class="primary" id="gps-button">Retry location</button>';
-  if (distance <= poi.activationRadiusMeters && reading!.accuracy > poi.activationRadiusMeters) return '<button class="primary" disabled>Waiting for a clearer GPS fix…</button>';
-  if (distance <= poi.activationRadiusMeters) return '<button class="primary discovery-ready" id="discover-button">Discover this place ✦</button>';
-  return '<button class="primary" id="map-focus">Frame me and this place</button>';
+  if (isDone(poi.id)) return `<button class="primary" id="open-event">${tr('openMemory')}</button>`;
+  if (distance === null) return simulation ? `<button class="primary" id="dev-open">${tr('openDev')}</button>` : `<button class="primary" id="gps-button">${gpsState === 'acquiring' ? tr('finding') : tr('enableLocation')}</button>`;
+  if (!canUnlock()) return `<button class="primary" id="gps-button">${tr('retryLocation')}</button>`;
+  if (distance <= poi.activationRadiusMeters && reading!.accuracy > poi.activationRadiusMeters) return `<button class="primary" disabled>${tr('waitingGps')}</button>`;
+  if (distance <= poi.activationRadiusMeters) return `<button class="primary discovery-ready" id="discover-button">${tr('discoverPlace')}</button>`;
+  return `<button class="primary" id="map-focus">${tr('frame')}</button>`;
 }
 function poiCard(poi: PointOfInterest): string {
-  const distance = reading ? formatDistance(distanceMeters(reading, poi)) : 'GPS needed';
-  return `<button class="poi-card ${poi.id === selectedId ? 'selected' : ''}" data-poi="${poi.id}"><span class="poi-symbol">${isDone(poi.id) ? poi.reward.symbol : '?'}</span><span><strong>${poi.shortName}</strong><small>${isDone(poi.id) ? poi.reward.name : distance}</small></span><span class="chevron">›</span></button>`;
+  const distance = reading ? formatDistance(distanceMeters(reading, poi)) : tr('gpsNeeded');
+  return `<button class="poi-card ${poi.id === selectedId ? 'selected' : ''}" data-poi="${poi.id}"><span class="poi-symbol">${isDone(poi.id) ? poi.reward.symbol : '?'}</span><span><strong>${pt(poi).shortName}</strong><small>${isDone(poi.id) ? pt(poi).reward : distance}</small></span><span class="chevron">›</span></button>`;
 }
-function onboardingHtml(): string { return `<div class="modal-layer"><section class="onboarding" role="dialog" aria-modal="true"><div class="compass-mark">✦</div><div class="eyebrow">A WALKING ADVENTURE IN ALMATY</div><h2>Five secrets are hidden around Bostandyk.</h2><p>Visit real public places to recover the five sigils of a forgotten city atlas.</p><div class="promise"><span>⌖</span><div><strong>Your location stays private</strong><small>No account. No history upload. Progress is saved only in this browser.</small></div></div><div class="safety">Look up around traffic. Use crossings, stay in public areas, and stop walking before using your phone.</div><button class="primary" id="start-button">Start exploring</button><small class="permission-note">Your browser will ask for location next.</small></section></div>`; }
+function onboardingHtml(): string { return `<div class="modal-layer"><section class="onboarding" role="dialog" aria-modal="true"><div class="compass-mark">✦</div><div class="eyebrow">${tr('onboardingEyebrow')}</div><h2>${tr('onboardingTitle')}</h2><p>${tr('onboardingBody')}</p><div class="promise"><span>⌖</span><div><strong>${tr('privateTitle')}</strong><small>${tr('privateBody')}</small></div></div><div class="safety">${tr('safety')}</div><button class="primary" id="start-button">${tr('start')}</button><small class="permission-note">${tr('permissionNext')}</small></section></div>`; }
 function eventHtml(poi: PointOfInterest): string {
   const done = progress.completedEventIds.includes(poi.id);
   const complete = progress.discoveredIds.length === POIS.length;
   const next = nextIncomplete();
-  return `<div class="modal-layer"><section class="event-card" role="dialog" aria-modal="true"><button class="close" id="close-event" aria-label="Close">×</button><div class="reward-icon">${done || answeredCorrectly ? poi.reward.symbol : '?'}</div><div class="eyebrow">${done ? 'ATLAS MEMORY' : 'YOU REACHED THIS PLACE'}</div><h2>${poi.shortName}</h2>${done || answeredCorrectly ? `<div class="reward-name">${poi.reward.name} collected</div><p>${poi.event.success}</p>${complete ? '<div class="final-message"><strong>Five sigils. One living city.</strong><br>Your recovered atlas is ready to open.</div>' : '<p class="next-hint">A new blank page waits.</p>'}<button class="primary" id="continue-button">${complete ? 'Open completed atlas' : `Next: ${next?.shortName ?? 'choose a trail'}`}</button>` : `<p>${poi.event.prompt}</p><div class="choices">${poi.event.choices.map((c, i) => `<button data-choice="${i}">${c}</button>`).join('')}</div><div id="answer-feedback" role="status"></div>`}</section></div>`;
+  const copy = pt(poi);
+  return `<div class="modal-layer"><section class="event-card" role="dialog" aria-modal="true"><button class="close" id="close-event" aria-label="${tr('close')}">×</button><div class="reward-icon">${done || answeredCorrectly ? poi.reward.symbol : '?'}</div><div class="eyebrow">${done ? tr('memory') : tr('reached')}</div><h2>${copy.shortName}</h2>${done || answeredCorrectly ? `<div class="reward-name">${copy.reward} ${tr('collected')}</div><p>${copy.success}</p>${complete ? `<div class="final-message"><strong>${tr('fiveSigils')}</strong><br>${tr('atlasReady')}</div>` : `<p class="next-hint">${tr('blankPage')}</p>`}<button class="primary" id="continue-button">${complete ? tr('openCompleted') : tr('next', { name: next ? pt(next).shortName : tr('allTrails') })}</button>` : `<p>${copy.prompt}</p><div class="choices">${copy.choices.map((c, i) => `<button data-choice="${i}">${c}</button>`).join('')}</div><div id="answer-feedback" role="status"></div>`}</section></div>`;
 }
 function atlasHtml(): string {
   const complete = progress.discoveredIds.length === POIS.length;
-  return `<div class="modal-layer"><section class="event-card atlas-card" role="dialog" aria-modal="true"><button class="close" id="close-atlas" aria-label="Close">×</button><div class="reward-icon">${complete ? '✦' : '⌖'}</div><div class="eyebrow">THE RECOVERED ATLAS · ${progress.discoveredIds.length}/5</div><h2>${complete ? 'Bostandyk, remembered' : 'Your collected sigils'}</h2><p>${complete ? 'Leaf, pattern, friendship, stone, and sky reveal the secret: a city is not its map, but the lives and paths that connect its places.' : 'Each visited place restores one mark. The locked pages are still waiting outdoors.'}</p><div class="atlas-list">${POIS.map(p => `<div class="atlas-entry ${isDone(p.id) ? '' : 'locked'}"><span>${isDone(p.id) ? p.reward.symbol : '·'}</span><div><strong>${isDone(p.id) ? p.reward.name : 'Undiscovered sigil'}</strong><small>${isDone(p.id) ? p.shortName : 'Visit its numbered marker'}</small></div></div>`).join('')}</div><button class="primary" id="atlas-done">${complete ? 'Close the atlas' : 'Continue exploring'}</button></section></div>`;
+  return `<div class="modal-layer"><section class="event-card atlas-card" role="dialog" aria-modal="true"><button class="close" id="close-atlas" aria-label="${tr('close')}">×</button><div class="reward-icon">${complete ? '✦' : '⌖'}</div><div class="eyebrow">${tr('recoveredAtlas')} · ${progress.discoveredIds.length}/5</div><h2>${complete ? tr('remembered') : tr('collectedSigils')}</h2><p>${complete ? tr('ending') : tr('atlasPartial')}</p><div class="atlas-list">${POIS.map(p => `<div class="atlas-entry ${isDone(p.id) ? '' : 'locked'}"><span>${isDone(p.id) ? p.reward.symbol : '·'}</span><div><strong>${isDone(p.id) ? pt(p).reward : tr('undiscoveredSigil')}</strong><small>${isDone(p.id) ? pt(p).shortName : tr('visitMarker')}</small></div></div>`).join('')}</div><button class="primary" id="atlas-done">${complete ? tr('closeAtlas') : tr('continueExploring')}</button></section></div>`;
 }
-function settingsHtml(): string { return `<div class="dialog-head"><div><div class="eyebrow">FIELD KIT</div><h2>Settings & privacy</h2></div><button id="close-settings" class="close" aria-label="Close">×</button></div><p><strong>Private by design.</strong> Coordinates stay in this browser. There is no account, location upload, analytics, or telemetry. Progress uses local storage.</p><p>GPS is read only while open; browsers do not provide reliable background tracking.</p><button id="retry-gps" class="secondary">Retry GPS</button><a class="secondary link-button" href="${simulation ? location.pathname : `${location.pathname}?dev=true`}">${simulation ? 'Exit Simulation Mode' : 'Open Simulation Mode'}</a><button id="reset-button" class="danger">Reset all progress</button>`; }
-function devPanelHtml(selected: PointOfInterest, distance: number | null): string { return `<details class="dev-panel"><summary>Developer controls <span>⌃</span></summary><div class="dev-body"><label>Simulated target<select id="dev-poi">${POIS.map(p => `<option value="${p.id}" ${p.id === selected.id ? 'selected' : ''}>${p.shortName}</option>`).join('')}</select></label><div class="dev-grid"><button data-sim="near">Near (80 m)</button><button data-sim="arrive">Inside radius</button><button data-sim="poor">Poor accuracy</button><button data-sim="discover">Trigger discovery</button></div><dl><dt>Source</dt><dd>simulated</dd><dt>Latitude</dt><dd>${reading?.latitude.toFixed(6) ?? '—'}</dd><dt>Longitude</dt><dd>${reading?.longitude.toFixed(6) ?? '—'}</dd><dt>Accuracy</dt><dd>${reading ? `±${reading.accuracy} m` : '—'}</dd><dt>Selected / distance</dt><dd>${selected.id} / ${distance === null ? '—' : `${distance.toFixed(1)} m`}</dd><dt>Activation radius</dt><dd>${selected.activationRadiusMeters} m</dd></dl><button id="dev-reset" class="danger">Reset progress</button></div></details>`; }
+function settingsHtml(): string { return `<div class="dialog-head"><div><div class="eyebrow">${tr('fieldKit')}</div><h2>${tr('settingsPrivacy')}</h2></div><button id="close-settings" class="close" aria-label="${tr('close')}">×</button></div><p><strong>${tr('privateDesign')}</strong> ${tr('privacyLong')}</p><p>${tr('backgroundGps')}</p><div class="language-setting"><span>${tr('language')}</span><div><button data-lang="ru" class="${language === 'ru' ? 'active' : ''}">Русский</button><button data-lang="en" class="${language === 'en' ? 'active' : ''}">English</button></div></div><button id="retry-gps" class="secondary">${tr('retryGps')}</button><a class="secondary link-button" href="${simulation ? location.pathname : `${location.pathname}?dev=true`}">${simulation ? tr('exitSimulation') : tr('openSimulation')}</a><button id="reset-button" class="danger">${tr('resetAll')}</button>`; }
+function devPanelHtml(selected: PointOfInterest, distance: number | null): string { return `<details class="dev-panel" ${devPanelOpen ? 'open' : ''}><summary>${tr('devControls')} <span>⌃</span></summary><div class="dev-body"><label>${tr('simulatedTarget')}<select id="dev-poi">${POIS.map(p => `<option value="${p.id}" ${p.id === selected.id ? 'selected' : ''}>${pt(p).shortName}</option>`).join('')}</select></label><div class="dev-grid"><button data-sim="near">${tr('near')}</button><button data-sim="arrive">${tr('inside')}</button><button data-sim="poor">${tr('poor')}</button><button data-sim="discover">${tr('trigger')}</button></div><dl><dt>${tr('source')}</dt><dd>${tr('simulated').toLowerCase()}</dd><dt>Latitude</dt><dd>${reading?.latitude.toFixed(6) ?? '—'}</dd><dt>Longitude</dt><dd>${reading?.longitude.toFixed(6) ?? '—'}</dd><dt>${tr('accuracy')}</dt><dd>${reading ? `±${reading.accuracy} m` : '—'}</dd><dt>${tr('selectedDistance')}</dt><dd>${selected.id} / ${distance === null ? '—' : `${distance.toFixed(1)} m`}</dd><dt>${tr('activationRadius')}</dt><dd>${selected.activationRadiusMeters} m</dd></dl><button id="dev-reset" class="danger">${tr('resetProgress')}</button></div></details>`; }
 
 function bindUi(): void {
   document.querySelector('#start-button')?.addEventListener('click', () => { progress.tutorialSeen = true; persistProgress(); render(); startGps(); });
   document.querySelector('#gps-button')?.addEventListener('click', startGps);
-  document.querySelector('#dev-open')?.addEventListener('click', () => { const panel = document.querySelector<HTMLDetailsElement>('.dev-panel'); if (panel) panel.open = true; });
+  document.querySelector('#dev-open')?.addEventListener('click', () => { const panel = document.querySelector<HTMLDetailsElement>('.dev-panel'); if (panel) { devPanelOpen = true; panel.open = true; } });
   document.querySelector('#center-button')?.addEventListener('click', centerOnReading);
   document.querySelector('#map-focus')?.addEventListener('click', () => focusSelected(true));
   document.querySelector('#discover-button')?.addEventListener('click', () => openEvent(selectedPoi()));
   document.querySelector('#open-event')?.addEventListener('click', () => openEvent(selectedPoi()));
   document.querySelector('#ending-button')?.addEventListener('click', openAtlas);
   document.querySelector('#atlas-button')?.addEventListener('click', openAtlas);
-  document.querySelector('#list-toggle')?.addEventListener('click', (e) => { const b = e.currentTarget as HTMLButtonElement; const list = document.querySelector<HTMLElement>('#poi-list')!; list.hidden = !list.hidden; b.setAttribute('aria-expanded', String(!list.hidden)); });
-  document.querySelectorAll<HTMLElement>('[data-poi]').forEach(el => el.addEventListener('click', () => { selectedId = el.dataset.poi!; render(); setTimeout(() => { focusSelected(false); document.querySelector('.quest-panel')?.scrollIntoView({ block: 'start' }); }, 0); }));
+  document.querySelector('#list-toggle')?.addEventListener('click', (e) => { const b = e.currentTarget as HTMLButtonElement; const list = document.querySelector<HTMLElement>('#poi-list')!; trailListOpen = !trailListOpen; list.hidden = !trailListOpen; b.setAttribute('aria-expanded', String(trailListOpen)); });
+  document.querySelectorAll<HTMLElement>('[data-poi]').forEach(el => el.addEventListener('click', () => { selectedId = el.dataset.poi!; trailListOpen = false; render(); setTimeout(() => { focusSelected(false); document.querySelector('.quest-panel')?.scrollIntoView({ block: 'start' }); }, 0); }));
   const dialog = document.querySelector<HTMLDialogElement>('#settings-dialog')!;
-  document.querySelector('#menu-button')?.addEventListener('click', () => dialog.showModal());
-  document.querySelector('#close-settings')?.addEventListener('click', () => dialog.close());
-  document.querySelector('#retry-gps')?.addEventListener('click', () => { dialog.close(); startGps(); });
-  document.querySelector('#reset-button')?.addEventListener('click', () => { if (confirm('Erase all discoveries and restart?')) { resetAll(); dialog.close(); } });
+  document.querySelector('#menu-button')?.addEventListener('click', () => { settingsOpen = true; dialog.showModal(); });
+  document.querySelector('#close-settings')?.addEventListener('click', () => { settingsOpen = false; dialog.close(); });
+  dialog.addEventListener('close', () => { settingsOpen = false; });
+  document.querySelector('#retry-gps')?.addEventListener('click', () => { settingsOpen = false; dialog.close(); startGps(); });
+  document.querySelector('#reset-button')?.addEventListener('click', () => { if (confirm(tr('resetConfirm'))) { settingsOpen = false; resetAll(); dialog.close(); } });
+  document.querySelectorAll<HTMLElement>('[data-lang]').forEach(el => el.addEventListener('click', () => { language = el.dataset.lang as Language; saveLanguage(language); settingsOpen = true; render(); }));
   document.querySelector('#close-event')?.addEventListener('click', closeEvent); document.querySelector('#continue-button')?.addEventListener('click', continueJourney);
   document.querySelector('#close-atlas')?.addEventListener('click', closeAtlas); document.querySelector('#atlas-done')?.addEventListener('click', closeAtlas);
   document.querySelectorAll<HTMLElement>('[data-choice]').forEach(el => el.addEventListener('click', () => answer(Number(el.dataset.choice))));
   document.querySelector('#dev-poi')?.addEventListener('change', e => { selectedId = (e.target as HTMLSelectElement).value; render(); });
   document.querySelectorAll<HTMLElement>('[data-sim]').forEach(el => el.addEventListener('click', () => simulate(el.dataset.sim!)));
   document.querySelector('#dev-reset')?.addEventListener('click', resetAll);
+  document.querySelector<HTMLDetailsElement>('.dev-panel')?.addEventListener('toggle', e => { devPanelOpen = (e.currentTarget as HTMLDetailsElement).open; });
 }
 
 function startGps(): void {
@@ -156,7 +171,7 @@ function openAtlas(): void { showAtlas = true; eventPoi = null; render(); }
 function closeAtlas(): void { showAtlas = false; render(); }
 function answer(index: number): void {
   if (!eventPoi) return;
-  if (index !== eventPoi.event.correctChoice) { document.querySelector('#answer-feedback')!.textContent = 'Not quite. Look at the place, then try again.'; return; }
+  if (index !== eventPoi.event.correctChoice) { document.querySelector('#answer-feedback')!.textContent = tr('wrong'); return; }
   answeredCorrectly = true; progress.discoveredIds = [...new Set([...progress.discoveredIds, eventPoi.id])]; progress.completedEventIds = [...new Set([...progress.completedEventIds, eventPoi.id])]; progress.rewards = [...new Set([...progress.rewards, eventPoi.reward.name])]; persistProgress(); render();
 }
 function persistProgress(): void { storageWarning = !saveProgress(progress); }
