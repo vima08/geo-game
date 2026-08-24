@@ -1,6 +1,6 @@
-# Bostandyk Trails
+# Almaty Trails
 
-A mobile-first, installable geolocation exploration game set in Bostandyk District, Almaty. Players visit five public landmarks and solve tiny location-specific clues to recover the sigils of a forgotten city atlas. There is no backend, account, analytics, or API key.
+A mobile-first, installable geolocation exploration game with two independent five-location adventures in Almaty: **Bostandyk Trails** and **Golden Square Echoes**. Players visit public landmarks, solve small location-specific clues, and complete a separate atlas for each route. There is no backend, account, analytics, or API key.
 
 The interface is available in English and Russian. Russian is selected automatically when the browser language starts with `ru`; the player can switch languages at any time in **Field Kit / Полевой набор**, and the choice persists locally.
 
@@ -42,11 +42,13 @@ The magenta banner makes simulated location unmistakable and real GPS is stopped
 - inspect coordinates, accuracy, selected POI, distance, radius, and source;
 - reset all locally stored progress.
 
-To complete the game, choose a target, press **Inside radius** (or **Trigger discovery**), answer its clue, and repeat for all five. Exit using Settings → **Exit Simulation Mode**; the normal page reacquires real GPS.
+Choose an adventure from Field Kit, then choose a target, press **Inside radius** (or **Trigger discovery**), answer its clue, and repeat for all five. Each adventure has independent 0/5 progress and a distinct ending. Exit using Settings → **Exit Simulation Mode**; the normal page reacquires real GPS.
 
-## The five verified locations
+## Verified locations
 
 All activation points are on public pedestrian areas. Players should follow current signs, opening conditions, and safe crossings.
+
+### Bostandyk Trails
 
 1. **Main Botanical Garden — South Entrance** (`43.215431, 76.920564`, 40 m). The entrance coordinate and Bostandyk location are documented in [Wikimedia Commons metadata](https://commons.wikimedia.org/wiki/File:Almaty_Botanical_Garden_entrance.jpg); the garden identity is also recorded by [Wikidata](https://www.wikidata.org/wiki/Q4062764). Activation is at the entrance and does not require paid entry.
 2. **Atakent — Main Pavilion** (`43.223061, 76.906389`, 45 m). Coordinates are recorded by [Wikidata](https://www.wikidata.org/wiki/Q22668435), with address information on the [official Atakent site](https://www.akr.kz/contacts.html).
@@ -55,6 +57,16 @@ All activation points are on public pedestrian areas. Players should follow curr
 5. **Independence Monument — Republic Square** (`43.238568, 76.945400`, 40 m). The monument is documented in the [Kazakhstan cultural heritage city guide](https://cultural.kz/slider/images/221-en.pdf), with coordinates corroborated by [2GIS](https://2gis.kz/almaty/directions/points/%7C76.945377%2C43.238598%3B9430107504508932).
 
 First President Park was deliberately not included because reconstruction was announced in August 2026; the prototype avoids directing players toward a possible work zone.
+
+### Golden Square Echoes
+
+The Golden Square is an informal historic neighbourhood whose commonly cited core is bounded by Zheltoksan, Abai, Kunaev and Kabanbay Batyr/Bogenbai Batyr streets. The five points form a compact walk through that core and its boundary streets. No event requires buying a ticket or entering a building.
+
+1. **Lermontov National Drama Theatre** (`43.243180, 76.944080`, 35 m). The theatre identity and OpenStreetMap coordinates are documented by [Mapcarta](https://mapcarta.com/W51267943). Activation is on the public forecourt.
+2. **Golovizin House — Street Viewpoint** (`43.244520, 76.948390`, 30 m). The nationally significant Art Nouveau building and coordinates are documented in the [Kazakhstan cultural heritage city guide](https://cultural.kz/slider/images/221-en.pdf). It is currently a state residence, so the game explicitly uses the public sidewalk viewpoint and never asks players to enter.
+3. **Abay Opera and Ballet Theatre — Main Square** (`43.248890, 76.945830`, 45 m). Coordinates and municipal ownership are recorded by [DBpedia/Wikidata-derived data](https://dbpedia.org/page/Abay_Opera_House), while the official address is documented by [Visit Almaty](https://visitalmaty.kz/wp-content/themes/visitwp/media/putevoditel_po_Almaty.pdf). Activation is on the open square.
+4. **Nedelka Fountain** (`43.249167, 76.943889`, 35 m). The public fountain’s address, history and GPS coordinates are documented by [WildTicket Asia](https://wildticketasia.com/1995-nedelka-fountain-week.html).
+5. **Kunaev House Museum — Exterior** (`43.252720, 76.948460`, 35 m). The museum and coordinates are documented by [Mapcarta/OpenStreetMap](https://mapcarta.com/N4832577988) and its address by the [museum excursion reference](https://silkadv.com/en/content/apartment-museum-da-kunaev). Activation is outside; museum opening hours and admission do not affect gameplay.
 
 ## GitHub Pages deployment
 

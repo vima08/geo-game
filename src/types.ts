@@ -23,6 +23,13 @@ export interface PointOfInterest {
   };
 }
 
+export interface Adventure {
+  id: 'bostandyk' | 'golden-square';
+  center: [number, number];
+  defaultZoom: number;
+  pois: PointOfInterest[];
+}
+
 export interface Progress {
   discoveredIds: string[];
   rewards: string[];

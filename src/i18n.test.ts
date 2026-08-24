@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { POIS } from './data/pois';
+import { ADVENTURES } from './data/pois';
 import { poiText, t } from './i18n';
 
 describe('Russian localization', () => {
   it('covers every POI without changing event answer indexes', () => {
-    for (const poi of POIS) {
+    for (const poi of ADVENTURES.flatMap(adventure => adventure.pois)) {
       const copy = poiText(poi, 'ru');
       expect(copy.name.trim()).not.toBe('');
       expect(copy.shortName.trim()).not.toBe('');

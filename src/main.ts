@@ -1,18 +1,21 @@
 import 'leaflet/dist/leaflet.css';
 import L, { type Map as LeafletMap } from 'leaflet';
 import './style.css';
-import { POIS } from './data/pois';
+import { ADVENTURES } from './data/pois';
 import { distanceMeters, formatDistance } from './geo';
 import { loadLanguage, poiText, saveLanguage, t, type Language } from './i18n';
 import { loadProgress, resetProgress, saveProgress } from './progress';
-import type { LocationReading, PointOfInterest, Progress } from './types';
+import type { Adventure, LocationReading, PointOfInterest, Progress } from './types';
 
 type GpsState = 'idle' | 'acquiring' | 'active' | 'denied' | 'unavailable' | 'timeout' | 'unsupported';
 const app = document.querySelector<HTMLDivElement>('#app')!;
+const ADVENTURE_KEY = 'almaty-trails-active-adventure-v1';
+const savedAdventure = (() => { try { return localStorage.getItem(ADVENTURE_KEY); } catch { return null; } })();
+let activeAdventureId: Adventure['id'] = savedAdventure === 'golden-square' ? 'golden-square' : 'bostandyk';
 let progress: Progress = loadProgress();
 let reading: LocationReading | null = null;
 let gpsState: GpsState = 'idle';
-let selectedId = POIS[0].id;
+let selectedId = ADVENTURES.find(a => a.id === activeAdventureId)!.pois[0].id;
 let watchId: number | null = null;
 let map: LeafletMap | null = null;
 let poiLayer: L.LayerGroup | null = null;
@@ -29,26 +32,32 @@ let settingsOpen = false;
 let trailListOpen = false;
 let devPanelOpen = false;
 
-const selectedPoi = () => POIS.find((p) => p.id === selectedId)!;
+const adventure = () => ADVENTURES.find(a => a.id === activeAdventureId)!;
+const pois = () => adventure().pois;
+const selectedPoi = () => pois().find((p) => p.id === selectedId)!;
 const isDone = (id: string) => progress.discoveredIds.includes(id);
-const rewardSymbol = (name: string) => POIS.find((p) => p.reward.name === name)?.reward.symbol ?? '•';
+const discoveredCount = () => pois().filter(p => isDone(p.id)).length;
 const tr = (key: Parameters<typeof t>[1], values?: Record<string, string | number>) => t(language, key, values);
 const pt = (poi: PointOfInterest) => poiText(poi, language);
+const adventureTitle = (id = activeAdventureId) => tr(id === 'bostandyk' ? 'bostandykTitle' : 'goldenTitle');
+const adventureDescription = (id: Adventure['id']) => tr(id === 'bostandyk' ? 'bostandykDesc' : 'goldenDesc');
 
 function render(): void {
   const existingMapElement = map?.getContainer() ?? null;
   existingMapElement?.remove();
   const selected = selectedPoi();
-  const sorted = [...POIS].sort((a, b) => reading ? distanceMeters(reading, a) - distanceMeters(reading, b) : a.name.localeCompare(b.name));
+  const sorted = [...pois()].sort((a, b) => reading ? distanceMeters(reading, a) - distanceMeters(reading, b) : pt(a).name.localeCompare(pt(b).name, language));
   const distance = reading ? distanceMeters(reading, selected) : null;
-  const complete = progress.discoveredIds.length === POIS.length;
+  const count = discoveredCount();
+  const complete = count === pois().length;
   document.documentElement.lang = language;
   app.innerHTML = `
     <div class="shell ${simulation ? 'is-simulating' : ''}">
       ${simulation ? `<div class="sim-banner">${tr('simulationBanner')}</div>` : ''}
-      <header class="topbar"><div><div class="eyebrow">${tr('journal')}</div><h1>${tr('title')}</h1></div><button class="icon-button" id="menu-button" aria-label="${tr('openSettings')}">•••</button></header>
-      <section class="progress-wrap" aria-label="${tr('secretsFound', { n: progress.discoveredIds.length })}"><div class="progress-copy"><span>${tr('secretsFound', { n: progress.discoveredIds.length })}</span><button class="atlas-mini" id="atlas-button">${progress.rewards.map(rewardSymbol).join(' ') || tr('atlasUnopened')}</button></div><div class="progress-track"><span style="width:${progress.discoveredIds.length * 20}%"></span></div></section>
-      ${storageWarning ? `<div class="storage-warning">${tr('saveError')}</div>` : ''}${progress.discoveredIds.length === 0 ? `<div class="first-hint">${tr('firstHint')}</div>` : ''}
+      <header class="topbar"><div><div class="eyebrow">${tr('almatyJournal')}</div><h1>${adventureTitle()}</h1></div><button class="icon-button" id="menu-button" aria-label="${tr('openSettings')}">•••</button></header>
+      <button class="route-chip" id="route-button"><span><small>${tr('route')}</small>${adventureTitle()}</span><span>${tr('changeRoute')} ›</span></button>
+      <section class="progress-wrap" aria-label="${tr('secretsFound', { n: count })}"><div class="progress-copy"><span>${tr('secretsFound', { n: count })}</span><button class="atlas-mini" id="atlas-button">${pois().filter(p => isDone(p.id)).map(p => p.reward.symbol).join(' ') || tr('atlasUnopened')}</button></div><div class="progress-track"><span style="width:${count * 20}%"></span></div></section>
+      ${storageWarning ? `<div class="storage-warning">${tr('saveError')}</div>` : ''}${count === 0 ? `<div class="first-hint">${tr('firstHint')}</div>` : ''}
       ${complete ? `<button class="ending-strip" id="ending-button">${tr('atlasComplete')}</button>` : ''}
       <main>
         <section class="map-frame" aria-label="${tr('mapLabel')}"><div id="map"></div><div class="map-top-status">${gpsStatus()}</div><button class="map-action" id="center-button" ${reading ? '' : 'disabled'}>⌖ <span>${tr('center')}</span></button><div class="map-offline" id="map-offline" hidden>${tr('mapOffline')}</div></section>
@@ -100,17 +109,20 @@ function poiCard(poi: PointOfInterest): string {
 function onboardingHtml(): string { return `<div class="modal-layer"><section class="onboarding" role="dialog" aria-modal="true"><div class="compass-mark">✦</div><div class="eyebrow">${tr('onboardingEyebrow')}</div><h2>${tr('onboardingTitle')}</h2><p>${tr('onboardingBody')}</p><div class="promise"><span>⌖</span><div><strong>${tr('privateTitle')}</strong><small>${tr('privateBody')}</small></div></div><div class="safety">${tr('safety')}</div><button class="primary" id="start-button">${tr('start')}</button><small class="permission-note">${tr('permissionNext')}</small></section></div>`; }
 function eventHtml(poi: PointOfInterest): string {
   const done = progress.completedEventIds.includes(poi.id);
-  const complete = progress.discoveredIds.length === POIS.length;
+  const complete = discoveredCount() === pois().length;
   const next = nextIncomplete();
   const copy = pt(poi);
   return `<div class="modal-layer"><section class="event-card" role="dialog" aria-modal="true"><button class="close" id="close-event" aria-label="${tr('close')}">×</button><div class="reward-icon">${done || answeredCorrectly ? poi.reward.symbol : '?'}</div><div class="eyebrow">${done ? tr('memory') : tr('reached')}</div><h2>${copy.shortName}</h2>${done || answeredCorrectly ? `<div class="reward-name">${copy.reward} ${tr('collected')}</div><p>${copy.success}</p>${complete ? `<div class="final-message"><strong>${tr('fiveSigils')}</strong><br>${tr('atlasReady')}</div>` : `<p class="next-hint">${tr('blankPage')}</p>`}<button class="primary" id="continue-button">${complete ? tr('openCompleted') : tr('next', { name: next ? pt(next).shortName : tr('allTrails') })}</button>` : `<p>${copy.prompt}</p><div class="choices">${copy.choices.map((c, i) => `<button data-choice="${i}">${c}</button>`).join('')}</div><div id="answer-feedback" role="status"></div>`}</section></div>`;
 }
 function atlasHtml(): string {
-  const complete = progress.discoveredIds.length === POIS.length;
-  return `<div class="modal-layer"><section class="event-card atlas-card" role="dialog" aria-modal="true"><button class="close" id="close-atlas" aria-label="${tr('close')}">×</button><div class="reward-icon">${complete ? '✦' : '⌖'}</div><div class="eyebrow">${tr('recoveredAtlas')} · ${progress.discoveredIds.length}/5</div><h2>${complete ? tr('remembered') : tr('collectedSigils')}</h2><p>${complete ? tr('ending') : tr('atlasPartial')}</p><div class="atlas-list">${POIS.map(p => `<div class="atlas-entry ${isDone(p.id) ? '' : 'locked'}"><span>${isDone(p.id) ? p.reward.symbol : '·'}</span><div><strong>${isDone(p.id) ? pt(p).reward : tr('undiscoveredSigil')}</strong><small>${isDone(p.id) ? pt(p).shortName : tr('visitMarker')}</small></div></div>`).join('')}</div><button class="primary" id="atlas-done">${complete ? tr('closeAtlas') : tr('continueExploring')}</button></section></div>`;
+  const count = discoveredCount();
+  const complete = count === pois().length;
+  const endingTitle = activeAdventureId === 'bostandyk' ? tr('remembered') : tr('goldenRemembered');
+  const endingCopy = activeAdventureId === 'bostandyk' ? tr('ending') : tr('goldenEnding');
+  return `<div class="modal-layer"><section class="event-card atlas-card" role="dialog" aria-modal="true"><button class="close" id="close-atlas" aria-label="${tr('close')}">×</button><div class="reward-icon">${complete ? '✦' : '⌖'}</div><div class="eyebrow">${tr('recoveredAtlas')} · ${count}/5</div><h2>${complete ? endingTitle : tr('collectedSigils')}</h2><p>${complete ? endingCopy : tr('atlasPartial')}</p><div class="atlas-list">${pois().map(p => `<div class="atlas-entry ${isDone(p.id) ? '' : 'locked'}"><span>${isDone(p.id) ? p.reward.symbol : '·'}</span><div><strong>${isDone(p.id) ? pt(p).reward : tr('undiscoveredSigil')}</strong><small>${isDone(p.id) ? pt(p).shortName : tr('visitMarker')}</small></div></div>`).join('')}</div><button class="primary" id="atlas-done">${complete ? tr('closeAtlas') : tr('continueExploring')}</button></section></div>`;
 }
-function settingsHtml(): string { return `<div class="dialog-head"><div><div class="eyebrow">${tr('fieldKit')}</div><h2>${tr('settingsPrivacy')}</h2></div><button id="close-settings" class="close" aria-label="${tr('close')}">×</button></div><p><strong>${tr('privateDesign')}</strong> ${tr('privacyLong')}</p><p>${tr('backgroundGps')}</p><div class="language-setting"><span>${tr('language')}</span><div><button data-lang="ru" class="${language === 'ru' ? 'active' : ''}">Русский</button><button data-lang="en" class="${language === 'en' ? 'active' : ''}">English</button></div></div><button id="retry-gps" class="secondary">${tr('retryGps')}</button><a class="secondary link-button" href="${simulation ? location.pathname : `${location.pathname}?dev=true`}">${simulation ? tr('exitSimulation') : tr('openSimulation')}</a><button id="reset-button" class="danger">${tr('resetAll')}</button>`; }
-function devPanelHtml(selected: PointOfInterest, distance: number | null): string { return `<details class="dev-panel" ${devPanelOpen ? 'open' : ''}><summary>${tr('devControls')} <span>⌃</span></summary><div class="dev-body"><label>${tr('simulatedTarget')}<select id="dev-poi">${POIS.map(p => `<option value="${p.id}" ${p.id === selected.id ? 'selected' : ''}>${pt(p).shortName}</option>`).join('')}</select></label><div class="dev-grid"><button data-sim="near">${tr('near')}</button><button data-sim="arrive">${tr('inside')}</button><button data-sim="poor">${tr('poor')}</button><button data-sim="discover">${tr('trigger')}</button></div><dl><dt>${tr('source')}</dt><dd>${tr('simulated').toLowerCase()}</dd><dt>Latitude</dt><dd>${reading?.latitude.toFixed(6) ?? '—'}</dd><dt>Longitude</dt><dd>${reading?.longitude.toFixed(6) ?? '—'}</dd><dt>${tr('accuracy')}</dt><dd>${reading ? `±${reading.accuracy} m` : '—'}</dd><dt>${tr('selectedDistance')}</dt><dd>${selected.id} / ${distance === null ? '—' : `${distance.toFixed(1)} m`}</dd><dt>${tr('activationRadius')}</dt><dd>${selected.activationRadiusMeters} m</dd></dl><button id="dev-reset" class="danger">${tr('resetProgress')}</button></div></details>`; }
+function settingsHtml(): string { return `<div class="dialog-head"><div><div class="eyebrow">${tr('fieldKit')}</div><h2>${tr('settingsPrivacy')}</h2></div><button id="close-settings" class="close" aria-label="${tr('close')}">×</button></div><div class="adventure-setting"><strong>${tr('chooseAdventure')}</strong>${ADVENTURES.map(a => { const count = a.pois.filter(p => isDone(p.id)).length; return `<button data-adventure="${a.id}" class="adventure-option ${a.id === activeAdventureId ? 'active' : ''}"><span><b>${adventureTitle(a.id)}</b><small>${adventureDescription(a.id)}</small></span><em>${count}/5</em></button>`; }).join('')}</div><p><strong>${tr('privateDesign')}</strong> ${tr('privacyLong')}</p><p>${tr('backgroundGps')}</p><div class="language-setting"><span>${tr('language')}</span><div><button data-lang="ru" class="${language === 'ru' ? 'active' : ''}">Русский</button><button data-lang="en" class="${language === 'en' ? 'active' : ''}">English</button></div></div><button id="retry-gps" class="secondary">${tr('retryGps')}</button><a class="secondary link-button" href="${simulation ? location.pathname : `${location.pathname}?dev=true`}">${simulation ? tr('exitSimulation') : tr('openSimulation')}</a><button id="reset-button" class="danger">${tr('resetAll')}</button>`; }
+function devPanelHtml(selected: PointOfInterest, distance: number | null): string { return `<details class="dev-panel" ${devPanelOpen ? 'open' : ''}><summary>${tr('devControls')} <span>⌃</span></summary><div class="dev-body"><label>${tr('simulatedTarget')}<select id="dev-poi">${pois().map(p => `<option value="${p.id}" ${p.id === selected.id ? 'selected' : ''}>${pt(p).shortName}</option>`).join('')}</select></label><div class="dev-grid"><button data-sim="near">${tr('near')}</button><button data-sim="arrive">${tr('inside')}</button><button data-sim="poor">${tr('poor')}</button><button data-sim="discover">${tr('trigger')}</button></div><dl><dt>${tr('source')}</dt><dd>${tr('simulated').toLowerCase()}</dd><dt>Latitude</dt><dd>${reading?.latitude.toFixed(6) ?? '—'}</dd><dt>Longitude</dt><dd>${reading?.longitude.toFixed(6) ?? '—'}</dd><dt>${tr('accuracy')}</dt><dd>${reading ? `±${reading.accuracy} m` : '—'}</dd><dt>${tr('selectedDistance')}</dt><dd>${selected.id} / ${distance === null ? '—' : `${distance.toFixed(1)} m`}</dd><dt>${tr('activationRadius')}</dt><dd>${selected.activationRadiusMeters} m</dd></dl><button id="dev-reset" class="danger">${tr('resetProgress')}</button></div></details>`; }
 
 function bindUi(): void {
   document.querySelector('#start-button')?.addEventListener('click', () => { progress.tutorialSeen = true; persistProgress(); render(); startGps(); });
@@ -126,11 +138,13 @@ function bindUi(): void {
   document.querySelectorAll<HTMLElement>('[data-poi]').forEach(el => el.addEventListener('click', () => { selectedId = el.dataset.poi!; trailListOpen = false; render(); setTimeout(() => { focusSelected(false); document.querySelector('.quest-panel')?.scrollIntoView({ block: 'start' }); }, 0); }));
   const dialog = document.querySelector<HTMLDialogElement>('#settings-dialog')!;
   document.querySelector('#menu-button')?.addEventListener('click', () => { settingsOpen = true; dialog.showModal(); });
+  document.querySelector('#route-button')?.addEventListener('click', () => { settingsOpen = true; dialog.showModal(); });
   document.querySelector('#close-settings')?.addEventListener('click', () => { settingsOpen = false; dialog.close(); });
   dialog.addEventListener('close', () => { settingsOpen = false; });
   document.querySelector('#retry-gps')?.addEventListener('click', () => { settingsOpen = false; dialog.close(); startGps(); });
   document.querySelector('#reset-button')?.addEventListener('click', () => { if (confirm(tr('resetConfirm'))) { settingsOpen = false; resetAll(); dialog.close(); } });
   document.querySelectorAll<HTMLElement>('[data-lang]').forEach(el => el.addEventListener('click', () => { language = el.dataset.lang as Language; saveLanguage(language); settingsOpen = true; render(); }));
+  document.querySelectorAll<HTMLElement>('[data-adventure]').forEach(el => el.addEventListener('click', () => switchAdventure(el.dataset.adventure as Adventure['id'])));
   document.querySelector('#close-event')?.addEventListener('click', closeEvent); document.querySelector('#continue-button')?.addEventListener('click', continueJourney);
   document.querySelector('#close-atlas')?.addEventListener('click', closeAtlas); document.querySelector('#atlas-done')?.addEventListener('click', closeAtlas);
   document.querySelectorAll<HTMLElement>('[data-choice]').forEach(el => el.addEventListener('click', () => answer(Number(el.dataset.choice))));
@@ -165,8 +179,8 @@ function simulate(kind: string): void {
 }
 function openEvent(poi: PointOfInterest): void { eventPoi = poi; answeredCorrectly = progress.completedEventIds.includes(poi.id); render(); }
 function closeEvent(): void { eventPoi = null; answeredCorrectly = false; render(); }
-function nextIncomplete(): PointOfInterest | undefined { const undone = POIS.filter(p => !isDone(p.id)); return reading ? undone.sort((a, b) => distanceMeters(reading!, a) - distanceMeters(reading!, b))[0] : undone[0]; }
-function continueJourney(): void { if (progress.discoveredIds.length === POIS.length) { eventPoi = null; answeredCorrectly = false; showAtlas = true; render(); return; } const next = nextIncomplete(); eventPoi = null; answeredCorrectly = false; if (next) selectedId = next.id; render(); setTimeout(() => focusSelected(false), 0); }
+function nextIncomplete(): PointOfInterest | undefined { const undone = pois().filter(p => !isDone(p.id)); return reading ? undone.sort((a, b) => distanceMeters(reading!, a) - distanceMeters(reading!, b))[0] : undone[0]; }
+function continueJourney(): void { if (discoveredCount() === pois().length) { eventPoi = null; answeredCorrectly = false; showAtlas = true; render(); return; } const next = nextIncomplete(); eventPoi = null; answeredCorrectly = false; if (next) selectedId = next.id; render(); setTimeout(() => focusSelected(false), 0); }
 function openAtlas(): void { showAtlas = true; eventPoi = null; render(); }
 function closeAtlas(): void { showAtlas = false; render(); }
 function answer(index: number): void {
@@ -176,10 +190,17 @@ function answer(index: number): void {
 }
 function persistProgress(): void { storageWarning = !saveProgress(progress); }
 function resetAll(): void { resetProgress(); progress = loadProgress(); eventPoi = null; answeredCorrectly = false; showAtlas = false; render(); }
+function switchAdventure(id: Adventure['id']): void {
+  if (id === activeAdventureId) return;
+  activeAdventureId = id; selectedId = pois()[0].id; eventPoi = null; showAtlas = false; answeredCorrectly = false; trailListOpen = false; reading = simulation ? null : reading;
+  try { localStorage.setItem(ADVENTURE_KEY, id); } catch { storageWarning = true; }
+  settingsOpen = true; render();
+  const current = adventure(); map?.setView(current.center, current.defaultZoom);
+}
 
 function initMap(): void {
   const target = document.querySelector<HTMLElement>('#map'); if (!target) return;
-  map?.remove(); map = L.map(target, { zoomControl: false }).setView([43.224, 76.924], 13); L.control.zoom({ position: 'topright' }).addTo(map);
+  const current = adventure(); map?.remove(); map = L.map(target, { zoomControl: false }).setView(current.center, current.defaultZoom); L.control.zoom({ position: 'topright' }).addTo(map);
   const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
   tiles.on('tileerror', () => { tileFailures++; if (tileFailures > 2) document.querySelector<HTMLElement>('#map-offline')!.hidden = false; });
   updateMapLayers();
@@ -187,10 +208,10 @@ function initMap(): void {
 function updateMapLayers(): void {
   if (!map) return;
   poiLayer?.remove(); playerLayer?.remove(); poiLayer = L.layerGroup().addTo(map); playerLayer = L.layerGroup().addTo(map);
-  POIS.forEach((poi, index) => {
+  pois().forEach((poi, index) => {
     const done = isDone(poi.id); const selected = poi.id === selectedId;
     const icon = L.divIcon({ className: '', html: `<span class="map-marker ${done ? 'done' : ''} ${selected ? 'selected' : ''}"><span>${done ? poi.reward.symbol : index + 1}</span></span>`, iconSize: [46, 50], iconAnchor: [23, 43] });
-    L.marker([poi.latitude, poi.longitude], { icon }).addTo(poiLayer!).on('click', () => { selectedId = poi.id; render(); });
+    L.marker([poi.latitude, poi.longitude], { icon, title: pt(poi).shortName, alt: pt(poi).shortName }).addTo(poiLayer!).on('click', () => { selectedId = poi.id; render(); });
     L.circle([poi.latitude, poi.longitude], { radius: poi.activationRadiusMeters, color: done ? '#28735c' : '#d07b36', fillColor: done ? '#49a881' : '#e9a35d', fillOpacity: selected ? .22 : .08, weight: selected ? 2 : 1 }).addTo(poiLayer!);
   });
   if (reading) { L.circle([reading.latitude, reading.longitude], { radius: reading.accuracy, color: '#2879a6', fillColor: '#56a9d4', fillOpacity: .12, weight: 1 }).addTo(playerLayer); L.circleMarker([reading.latitude, reading.longitude], { radius: 9, color: '#fff', weight: 3, fillColor: reading.source === 'simulated' ? '#b54586' : '#1675a1', fillOpacity: 1 }).addTo(playerLayer); }

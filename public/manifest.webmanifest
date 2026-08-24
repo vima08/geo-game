@@ -1,7 +1,7 @@
 {
-  "name": "Bostandyk Trails",
-  "short_name": "Trails",
-  "description": "A real-world exploration game across Bostandyk District, Almaty.",
+  "name": "Almaty Trails",
+  "short_name": "Almaty Trails",
+  "description": "Real-world walking adventures across Almaty.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
