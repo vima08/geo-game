@@ -1,6 +1,8 @@
 # Almaty Trails
 
-A mobile-first, installable geolocation exploration game with two independent five-location adventures in Almaty: **Bostandyk Trails** and **Golden Square Echoes**. Players visit public landmarks, solve small location-specific clues, and complete a separate atlas for each route. There is no backend, account, analytics, or API key.
+A mobile-first, installable geolocation exploration game with three independent five-location adventures: **Bostandyk Trails** and **Golden Square Echoes** in Almaty, and **Old Orsk Secrets / Тайны Старого Орска** in Orsk’s Old Town (Soviet district). Players visit public landmarks, solve small location-specific clues, and complete a separate atlas for each route. There is no backend, account, analytics, or API key.
+
+Use **Change route / Сменить маршрут → Тайны Старого Орска** to start the new adventure. Both Almaty routes remain available. Route and language selection persist; existing discoveries, rewards and tutorial state keep their original storage keys and are not reset by the update. Only the active route’s five points appear on the map and in simulation. Switching routes clears simulated coordinates; real GPS stays your actual location, even if you select a different city.
 
 The interface is available in English and Russian. Russian is selected automatically when the browser language starts with `ru`; the player can switch languages at any time in **Field Kit / Полевой набор**, and the choice persists locally.
 
@@ -44,9 +46,20 @@ The magenta banner makes simulated location unmistakable and real GPS is stopped
 
 Choose an adventure from Field Kit, then choose a target, press **Inside radius** (or **Trigger discovery**), answer its clue, and repeat for all five. Each adventure has independent 0/5 progress and a distinct ending. Exit using Settings → **Exit Simulation Mode**; the normal page reacquires real GPS.
 
+## Browser regression check
+
+With Google Chrome installed (or `BROWSER_PATH` pointing to a Chromium executable):
+
+```bash
+npm run build
+npm run test:browser
+```
+
+The check starts and stops its own production preview on port 4175. Use the same `PAGES_BASE` environment variable for both commands to test a repository subpath. It uses isolated browser profiles, not your personal game saves. It completes all five Orsk locations, checks both languages, legacy Almaty saves, route switching, persistence, reset, offline reload, manifest/icons/service-worker scope, and browser geolocation with a controlled position. It also reproduces GPS updates while Field Kit and All five trails are open. Mobile screenshots (360–430 px wide) are saved in the ignored `.gauntlet/screenshots/` directory. A controlled browser position is not a substitute for testing real GPS and pedestrian access on site.
+
 ## Verified locations
 
-All activation points are on public pedestrian areas. Players should follow current signs, opening conditions, and safe crossings.
+Activation points target public pedestrian areas or exterior viewpoints. Coordinates and identities were checked remotely, not surveyed on foot. Players should follow current signs, opening conditions, and safe crossings; do not cross barriers to reach a marker.
 
 ### Bostandyk Trails
 
@@ -67,6 +80,20 @@ The Golden Square is an informal historic neighbourhood whose commonly cited cor
 3. **Abay Opera and Ballet Theatre — Main Square** (`43.248890, 76.945830`, 45 m). Coordinates and municipal ownership are recorded by [DBpedia/Wikidata-derived data](https://dbpedia.org/page/Abay_Opera_House), while the official address is documented by [Visit Almaty](https://visitalmaty.kz/wp-content/themes/visitwp/media/putevoditel_po_Almaty.pdf). Activation is on the open square.
 4. **Nedelka Fountain** (`43.249167, 76.943889`, 35 m). The public fountain’s address, history and GPS coordinates are documented by [WildTicket Asia](https://wildticketasia.com/1995-nedelka-fountain-week.html).
 5. **Kunaev House Museum — Exterior** (`43.252720, 76.948460`, 35 m). The museum and coordinates are documented by [Mapcarta/OpenStreetMap](https://mapcarta.com/N4832577988) and its address by the [museum excursion reference](https://silkadv.com/en/content/apartment-museum-da-kunaev). Activation is outside; museum opening hours and admission do not affect gameplay.
+
+### Old Orsk Secrets / Тайны Старого Орска
+
+Five pages of an imagined atlas connect a garden, poetry, meetings, everyday history and the horizon. The locations are real; the sigils and story are fictional. The points are all in the historic Old Town of Orsk’s Soviet district, not the New Town or the railway-station neighbourhood. Their furthest straight-line separation is under 1 km; the game’s distances are **not turn-by-turn walking directions**.
+
+Sources and coordinates checked **7 September 2026**:
+
+1. **Shevchenko Garden / Сад Шевченко** (`51.207074, 58.555753`, 45 m). A garden-path target, using the [2GIS mapped destination](https://2gis.ru/orsk/directions/points/%7C58.555753%2C51.207074%3B70030076655359944), corroborated by [OSM garden boundary](https://www.openstreetmap.org/way/123059242). The [municipal park operator](https://gorodskie-parki.ru/kontakt) lists it at Sovetskaya, plot 63A. Use open paths; no off-path search is required.
+2. **Pushkin Monument / Памятник А. С. Пушкину** (`51.207582, 58.558352`, 35 m). Coordinate and Soviet-district location from [2GIS](https://2gis.ru/orsk/geo/70030076167425600), corroborated within about 6 m by [OSM](https://www.openstreetmap.org/node/9895635207). The public square beside Sovetskaya 67 is listed by the municipal park operator.
+3. **Bohdan Khmelnitsky Square — Monument / Сквер Богдана Хмельницкого** (`51.206732, 58.558242`, 35 m). Monument position from [OSM](https://www.openstreetmap.org/node/11217108532), inside the [mapped public square](https://www.openstreetmap.org/way/123702883). The [regional cultural portal](https://kultura.orb.ru/section/view?id=44) identifies the monument and its Old Town location between Sovetskaya 68 and 70. Use marked crossings between the neighbouring squares, not a straight line across traffic.
+4. **Old Town Museum and Cultural Centre — Exterior / Музейно-культурный центр «Старый город»** (`51.209838, 58.563796`, 45 m). The [museum’s official contact page and embedded map](https://orskmuseum.ru/contact/muzej-tg-shevchenko-v-orskoj-kreposti-c) give Shevchenko 33 and marker `[58.56379584497327, 51.20983788722569]` in longitude/latitude order. The [Culture.RU listing](https://www.culture.ru/institutes/21989/muzeino-kulturnyi-centr-staryi-gorod) confirms its historic-centre identity. Activation is from the public sidewalk; no ticket, courtyard or building entry is needed.
+5. **Ivan Kirilov Monument / Памятник Ивану Кирилову** (`51.209089, 58.565533`, 35 m). Exact monument position from [OSM](https://www.openstreetmap.org/node/5845599295). The [local historical reference](https://history.opck.org/pamjatniki-i-pamjatnye-mesta/pamjatniki/3500-pamyatnik-i-k-kirilovu.html) confirms Kirilov Square in the Old Town, Soviet district, and the telescope/document used in the clue. Stand on the public paved area, not on the pedestal.
+
+These parks were affected by the 2024 flood; [local reporting in July 2025](https://orsk.ru/news/140492) describes restoration and subsequent maintenance. Remote verification cannot guarantee today’s access conditions. Check current barriers and signage, avoid works or flooded sections, and return later if a public approach is closed. The route never requires reaching the river, climbing a hill, or entering a historic building.
 
 ## GitHub Pages deployment
 

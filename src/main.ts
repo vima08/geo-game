@@ -1,9 +1,9 @@
 import 'leaflet/dist/leaflet.css';
 import L, { type Map as LeafletMap } from 'leaflet';
 import './style.css';
-import { ADVENTURES } from './data/pois';
+import { ADVENTURES, getAdventure } from './data/pois';
 import { distanceMeters, formatDistance } from './geo';
-import { loadLanguage, poiText, saveLanguage, t, type Language } from './i18n';
+import { adventureText, loadLanguage, poiText, saveLanguage, t, type Language } from './i18n';
 import { loadProgress, resetProgress, saveProgress } from './progress';
 import type { Adventure, LocationReading, PointOfInterest, Progress } from './types';
 
@@ -11,7 +11,7 @@ type GpsState = 'idle' | 'acquiring' | 'active' | 'denied' | 'unavailable' | 'ti
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const ADVENTURE_KEY = 'almaty-trails-active-adventure-v1';
 const savedAdventure = (() => { try { return localStorage.getItem(ADVENTURE_KEY); } catch { return null; } })();
-let activeAdventureId: Adventure['id'] = savedAdventure === 'golden-square' ? 'golden-square' : 'bostandyk';
+let activeAdventureId: Adventure['id'] = getAdventure(savedAdventure).id;
 let progress: Progress = loadProgress();
 let reading: LocationReading | null = null;
 let gpsState: GpsState = 'idle';
@@ -39,8 +39,8 @@ const isDone = (id: string) => progress.discoveredIds.includes(id);
 const discoveredCount = () => pois().filter(p => isDone(p.id)).length;
 const tr = (key: Parameters<typeof t>[1], values?: Record<string, string | number>) => t(language, key, values);
 const pt = (poi: PointOfInterest) => poiText(poi, language);
-const adventureTitle = (id = activeAdventureId) => tr(id === 'bostandyk' ? 'bostandykTitle' : 'goldenTitle');
-const adventureDescription = (id: Adventure['id']) => tr(id === 'bostandyk' ? 'bostandykDesc' : 'goldenDesc');
+const adventureTitle = (id = activeAdventureId) => adventureText(id, language).title;
+const adventureDescription = (id: Adventure['id']) => adventureText(id, language).description;
 
 function render(): void {
   const existingMapElement = map?.getContainer() ?? null;
@@ -51,16 +51,17 @@ function render(): void {
   const count = discoveredCount();
   const complete = count === pois().length;
   document.documentElement.lang = language;
+  document.title = adventureTitle();
   app.innerHTML = `
     <div class="shell ${simulation ? 'is-simulating' : ''}">
       ${simulation ? `<div class="sim-banner">${tr('simulationBanner')}</div>` : ''}
-      <header class="topbar"><div><div class="eyebrow">${tr('almatyJournal')}</div><h1>${adventureTitle()}</h1></div><button class="icon-button" id="menu-button" aria-label="${tr('openSettings')}">•••</button></header>
+      <header class="topbar"><div><div class="eyebrow">${adventureText(activeAdventureId, language).journal}</div><h1>${adventureTitle()}</h1></div><button class="icon-button" id="menu-button" aria-label="${tr('openSettings')}">•••</button></header>
       <button class="route-chip" id="route-button"><span><small>${tr('route')}</small>${adventureTitle()}</span><span>${tr('changeRoute')} ›</span></button>
       <section class="progress-wrap" aria-label="${tr('secretsFound', { n: count })}"><div class="progress-copy"><span>${tr('secretsFound', { n: count })}</span><button class="atlas-mini" id="atlas-button">${pois().filter(p => isDone(p.id)).map(p => p.reward.symbol).join(' ') || tr('atlasUnopened')}</button></div><div class="progress-track"><span style="width:${count * 20}%"></span></div></section>
       ${storageWarning ? `<div class="storage-warning">${tr('saveError')}</div>` : ''}${count === 0 ? `<div class="first-hint">${tr('firstHint')}</div>` : ''}
       ${complete ? `<button class="ending-strip" id="ending-button">${tr('atlasComplete')}</button>` : ''}
       <main>
-        <section class="map-frame" aria-label="${tr('mapLabel')}"><div id="map"></div><div class="map-top-status">${gpsStatus()}</div><button class="map-action" id="center-button" ${reading ? '' : 'disabled'}>⌖ <span>${tr('center')}</span></button><div class="map-offline" id="map-offline" hidden>${tr('mapOffline')}</div></section>
+        <section class="map-frame" aria-label="${tr('mapLabel', { name: adventureTitle() })}"><div id="map"></div><div class="map-top-status">${gpsStatus()}</div><button class="map-action" id="center-button" ${reading ? '' : 'disabled'}>⌖ <span>${tr('center')}</span></button><div class="map-offline" id="map-offline" hidden>${tr('mapOffline')}</div></section>
         <section class="quest-panel">
           <div class="panel-heading"><div><div class="eyebrow">${isDone(selected.id) ? tr('discovered') : tr('selectedTrail')}</div><h2>${pt(selected).shortName}</h2></div><div class="distance-badge">${distance === null ? '—' : formatDistance(distance)}</div></div>
           <p class="description">${pt(selected).description}</p><div class="approach ${distance !== null && distance <= selected.activationRadiusMeters ? 'arrived' : ''}">${selectedStatus(selected, distance)}</div>
@@ -106,7 +107,7 @@ function poiCard(poi: PointOfInterest): string {
   const distance = reading ? formatDistance(distanceMeters(reading, poi)) : tr('gpsNeeded');
   return `<button class="poi-card ${poi.id === selectedId ? 'selected' : ''}" data-poi="${poi.id}"><span class="poi-symbol">${isDone(poi.id) ? poi.reward.symbol : '?'}</span><span><strong>${pt(poi).shortName}</strong><small>${isDone(poi.id) ? pt(poi).reward : distance}</small></span><span class="chevron">›</span></button>`;
 }
-function onboardingHtml(): string { return `<div class="modal-layer"><section class="onboarding" role="dialog" aria-modal="true"><div class="compass-mark">✦</div><div class="eyebrow">${tr('onboardingEyebrow')}</div><h2>${tr('onboardingTitle')}</h2><p>${tr('onboardingBody')}</p><div class="promise"><span>⌖</span><div><strong>${tr('privateTitle')}</strong><small>${tr('privateBody')}</small></div></div><div class="safety">${tr('safety')}</div><button class="primary" id="start-button">${tr('start')}</button><small class="permission-note">${tr('permissionNext')}</small></section></div>`; }
+function onboardingHtml(): string { return `<div class="modal-layer"><section class="onboarding" role="dialog" aria-modal="true"><div class="compass-mark">✦</div><div class="eyebrow">${tr('onboardingEyebrow')}</div><h2>${tr('onboardingTitle')}</h2><p>${tr('onboardingBody')}</p><div class="promise"><span>⌖</span><div><strong>${tr('privateTitle')}</strong><small>${tr('privateBody')}</small></div></div><div class="safety">${tr('safety')}</div><button class="primary" id="start-button">${tr('start')}</button><small class="permission-note">${tr(simulation ? 'simulationPermissionNote' : 'permissionNext')}</small></section></div>`; }
 function eventHtml(poi: PointOfInterest): string {
   const done = progress.completedEventIds.includes(poi.id);
   const complete = discoveredCount() === pois().length;
@@ -117,8 +118,7 @@ function eventHtml(poi: PointOfInterest): string {
 function atlasHtml(): string {
   const count = discoveredCount();
   const complete = count === pois().length;
-  const endingTitle = activeAdventureId === 'bostandyk' ? tr('remembered') : tr('goldenRemembered');
-  const endingCopy = activeAdventureId === 'bostandyk' ? tr('ending') : tr('goldenEnding');
+  const { endingTitle, ending: endingCopy } = adventureText(activeAdventureId, language);
   return `<div class="modal-layer"><section class="event-card atlas-card" role="dialog" aria-modal="true"><button class="close" id="close-atlas" aria-label="${tr('close')}">×</button><div class="reward-icon">${complete ? '✦' : '⌖'}</div><div class="eyebrow">${tr('recoveredAtlas')} · ${count}/5</div><h2>${complete ? endingTitle : tr('collectedSigils')}</h2><p>${complete ? endingCopy : tr('atlasPartial')}</p><div class="atlas-list">${pois().map(p => `<div class="atlas-entry ${isDone(p.id) ? '' : 'locked'}"><span>${isDone(p.id) ? p.reward.symbol : '·'}</span><div><strong>${isDone(p.id) ? pt(p).reward : tr('undiscoveredSigil')}</strong><small>${isDone(p.id) ? pt(p).shortName : tr('visitMarker')}</small></div></div>`).join('')}</div><button class="primary" id="atlas-done">${complete ? tr('closeAtlas') : tr('continueExploring')}</button></section></div>`;
 }
 function settingsHtml(): string { return `<div class="dialog-head"><div><div class="eyebrow">${tr('fieldKit')}</div><h2>${tr('settingsPrivacy')}</h2></div><button id="close-settings" class="close" aria-label="${tr('close')}">×</button></div><div class="adventure-setting"><strong>${tr('chooseAdventure')}</strong>${ADVENTURES.map(a => { const count = a.pois.filter(p => isDone(p.id)).length; return `<button data-adventure="${a.id}" class="adventure-option ${a.id === activeAdventureId ? 'active' : ''}"><span><b>${adventureTitle(a.id)}</b><small>${adventureDescription(a.id)}</small></span><em>${count}/5</em></button>`; }).join('')}</div><p><strong>${tr('privateDesign')}</strong> ${tr('privacyLong')}</p><p>${tr('backgroundGps')}</p><div class="language-setting"><span>${tr('language')}</span><div><button data-lang="ru" class="${language === 'ru' ? 'active' : ''}">Русский</button><button data-lang="en" class="${language === 'en' ? 'active' : ''}">English</button></div></div><button id="retry-gps" class="secondary">${tr('retryGps')}</button><a class="secondary link-button" href="${simulation ? location.pathname : `${location.pathname}?dev=true`}">${simulation ? tr('exitSimulation') : tr('openSimulation')}</a><button id="reset-button" class="danger">${tr('resetAll')}</button>`; }

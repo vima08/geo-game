@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:browser": "node scripts/verify-orsk.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

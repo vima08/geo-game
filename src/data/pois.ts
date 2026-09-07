@@ -76,10 +76,57 @@ export const GOLDEN_SQUARE_POIS: PointOfInterest[] = [
   },
 ];
 
+// Outdoor points, checked against municipal/museum sources and OSM on 2026-09-07.
+// Coordinate provenance and pedestrian access notes are in README.md.
+export const ORSK_OLD_TOWN_POIS: PointOfInterest[] = [
+  {
+    id: 'orsk-shevchenko-garden', name: 'Shevchenko Garden', shortName: 'Shevchenko Garden',
+    description: 'Pause on a garden path: rustling leaves hide the first page of the Old Orsk atlas. Stay on open paths.',
+    latitude: 51.207074, longitude: 58.555753, activationRadiusMeters: 45,
+    reward: { name: 'Garden Sigil', symbol: '❧' },
+    event: { prompt: 'A garden has its own quiet clock. What changes with the seasons?', choices: ['The street’s name', 'The leaves on the trees', 'The compass points'], correctChoice: 1, success: 'The Garden Sigil unfolds. Your atlas remembers the shade where city walks begin.' },
+  },
+  {
+    id: 'orsk-pushkin-monument', name: 'Pushkin Monument — Public Square', shortName: 'Pushkin Monument',
+    description: 'In the little public square beside Sovetskaya Street, a poet guards a page made of words.',
+    latitude: 51.207582, longitude: 58.558352, activationRadiusMeters: 35,
+    reward: { name: 'Verse Sigil', symbol: '✎' },
+    event: { prompt: 'The bust remembers Alexander Pushkin. Which page belongs in a poet’s notebook?', choices: ['A timetable', 'A shopping receipt', 'A verse'], correctChoice: 2, success: 'The Verse Sigil appears. A few words can preserve a whole walk together.' },
+  },
+  {
+    id: 'orsk-khmelnitsky-square', name: 'Bohdan Khmelnitsky Square — Monument', shortName: 'Khmelnitsky Square',
+    description: 'At the monument in the public square, another atlas page waits. Use the marked crossings between squares.',
+    latitude: 51.206732, longitude: 58.558242, activationRadiusMeters: 35,
+    reward: { name: 'Meeting Sigil', symbol: '∞' },
+    event: { prompt: 'A square is more than an empty space on a map. What makes it a meeting place?', choices: ['People spending time together', 'A closed gate', 'An empty car park'], correctChoice: 0, success: 'The Meeting Sigil joins two lines. A familiar square becomes part of your shared story.' },
+  },
+  {
+    id: 'orsk-old-town-museum', name: 'Old Town Museum and Cultural Centre — Exterior', shortName: 'Old Town Museum',
+    description: 'At 33 Shevchenko Street, an old merchant house keeps the city’s stories. Play from the public sidewalk; no ticket or entry needed.',
+    latitude: 51.209838, longitude: 58.563796, activationRadiusMeters: 45,
+    reward: { name: 'Chronicle Sigil', symbol: '▤' },
+    event: { prompt: 'This historic house is now a museum. What helps an ordinary object tell a city’s story?', choices: ['Its price alone', 'The memories of people who used it', 'A locked cupboard'], correctChoice: 1, success: 'The Chronicle Sigil opens. Everyday lives fill the atlas with stories that a street plan cannot show.' },
+  },
+  {
+    id: 'orsk-kirilov-monument', name: 'Ivan Kirilov Monument — Kirilov Square', shortName: 'Kirilov Monument',
+    description: 'On Kirilov Square, the city’s founder holds a telescope and a document. Find your clue from the public paved area.',
+    latitude: 51.209089, longitude: 58.565533, activationRadiusMeters: 35,
+    reward: { name: 'Horizon Sigil', symbol: '⌖' },
+    event: { prompt: 'Look at the telescope in the figure’s hand. What does this instrument help someone do?', choices: ['See distant details', 'Measure the time', 'Listen to the wind'], correctChoice: 0, success: 'The Horizon Sigil comes into focus. Old Orsk is no longer just a place on a map: it is a walk you can remember.' },
+  },
+];
+
 export const ADVENTURES: Adventure[] = [
   { id: 'bostandyk', center: [43.224, 76.924], defaultZoom: 13, pois: BOSTANDYK_POIS },
   { id: 'golden-square', center: [43.2495, 76.946], defaultZoom: 14, pois: GOLDEN_SQUARE_POIS },
+  // Offset the overview slightly east so the last pin clears mobile zoom controls.
+  { id: 'orsk-old-town', center: [51.2082, 58.5615], defaultZoom: 15, pois: ORSK_OLD_TOWN_POIS },
 ];
+
+// Resolve saved selections from the registry; old/unknown values keep the original route.
+export function getAdventure(id: string | null): Adventure {
+  return ADVENTURES.find(adventure => adventure.id === id) ?? ADVENTURES[0];
+}
 
 // Kept for compatibility with the original tests and data consumers.
 export const POIS = BOSTANDYK_POIS;

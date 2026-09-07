@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'almaty-trails-';
 const LEGACY_CACHE_PREFIX = 'bostandyk-trails-';
-const CACHE = `${CACHE_PREFIX}v1`;
+const CACHE = `${CACHE_PREFIX}v2`;
 const scopeUrl = new URL('./', self.registration.scope);
 
 self.addEventListener('install', (event) => {

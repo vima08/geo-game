@@ -24,7 +24,7 @@ export interface PointOfInterest {
 }
 
 export interface Adventure {
-  id: 'bostandyk' | 'golden-square';
+  id: 'bostandyk' | 'golden-square' | 'orsk-old-town';
   center: [number, number];
   defaultZoom: number;
   pois: PointOfInterest[];
